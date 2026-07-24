@@ -78,32 +78,53 @@ def extract_prices(symbol: str) -> pd.DataFrame:
             print(f"    {symbol}: cache is up to date ({last_date})")
             return existing
 
-    # Outdated cache - fetch only new days
-    # to start to the day immediately after the last date already stored in the cache:
-    start = pd.Timestamp(last_date) + pd.Timedelta(days=1)
-    print(f"    {symbol}: updating from {start.date()}...", end=" ", flush=True)
-    new_history = yf.Ticker(symbol).history(start=start)
+        # Outdated cache - fetch only new days
+        # to start to the day immediately after the last date already stored in the cache:
+        start = pd.Timestamp(last_date) + pd.Timedelta(days=1)
+        print(f"    {symbol}: updating from {start.date()}...", end=" ", flush=True)
+        new_history = yf.Ticker(symbol).history(start=start)
 
-    if new_history.empty:
-        print("no new data")
-        return existing
+        if new_history.empty:
+            print("no new data")
+            return existing
 
-    new_dataframe = new_history[["Open", "High", "Low", "Close", "Volume"]].copy()
-    new_dataframe.index = pd.to_datetime([day.date() for day in new_dataframe.index])
-    new_dataframe.index.name = "timestamp"
-    new_dataframe = new_dataframe.reset_index()
-    new_dataframe.columns = ["timestamp", "open", "high", "low", "close", "volume"]
-    new_dataframe["timestamp"] = new_dataframe["timestamp"].astype(str)
+        new_dataframe = new_history[["Open", "High", "Low", "Close", "Volume"]].copy()
+        new_dataframe.index = pd.to_datetime([day.date() for day in new_dataframe.index])
+        new_dataframe.index.name = "timestamp"
+        new_dataframe = new_dataframe.reset_index()
+        new_dataframe.columns = ["timestamp", "open", "high", "low", "close", "volume"]
+        new_dataframe["timestamp"] = new_dataframe["timestamp"].astype(str)
 
-    combined = (
-        pd.concat([existing, new_dataframe], ignore_index=True)
-        .drop_duplicates("timestamp")
-        .sort_values("timestamp", ascending=False)
-        .reset_index(drop=True)
-    )
-    combined.to_csv(cache, index=False)
-    print(f"+{len(new_dataframe)} new rows (total {len(combined):,})")
-    return combined
+        combined = (
+            pd.concat([existing, new_dataframe], ignore_index=True)
+            .drop_duplicates("timestamp")
+            .sort_values("timestamp", ascending=False)
+            .reset_index(drop=True)
+        )
+        combined.to_csv(cache, index=False)
+        print(f"+{len(new_dataframe)} new rows (total {len(combined):,})")
+        return combined
+
+    # no cache -> full download
+    print(f"    {symbol}: full download...", end=" ", flush=True)
+    history = yf.Ticker(symbol).history(period="max")
+    if history.empty:
+        raise RuntimeError(f"{symbol}: yfinance returned no data")
+
+    dataframe = history[["Open", "High", "Low", "Close", "Volume"]].copy()
+    dataframe.index = pd.to_datetime([day.date() for day in dataframe.index])
+    dataframe.index.name = "timestamp"
+    dataframe = dataframe.reset_index()
+    dataframe.columns = ["timestamp", "open", "high", "low", "close", "volume"]
+    dataframe["timestamp"] = dataframe["timestamp"].astype(str)
+    dataframe = dataframe.sort_values("timestamp", ascending=False).reset_index(drop=True)
+    dataframe.to_csv(cache, index=False)
+    print(f"{len(dataframe):,} rows")
+    return dataframe
+
+
+
+
 
 if __name__ == "__main__":
     print("done")
