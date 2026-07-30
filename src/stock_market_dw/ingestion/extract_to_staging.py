@@ -123,6 +123,27 @@ def extract_prices(symbol: str) -> pd.DataFrame:
     return dataframe
 
 
+def extract_compact_prices(symbol: str) -> pd.DataFrame:
+    """Download the most recent ~100 trading days of daily stock prices for a
+    given symbol from Alpha Vantage, validate that the response is valid, and
+    convert the CSV response into a Pandas DataFrame.
+    """
+    response = requests.get(
+        BASE,
+        params={
+            "function": "TIME_SERIES_DAILY",
+            "symbol": symbol,
+            "outputsize": "compact",
+            "datatype": "csv",
+            "apikey": API_KEY
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    if response.text.lstrip().startswith("{"):
+        raise RuntimeError(f"{symbol}: unexpected response: {response.text[:200]}")
+    time.sleep(PAUSE_SECONDS)
+    return pd.read_csv(io.StringIO(response.text))
 
 
 
