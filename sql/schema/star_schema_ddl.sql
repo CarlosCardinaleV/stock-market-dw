@@ -1,10 +1,10 @@
--- DIM_DATE: Jerarquia Anio > Trimestre > Mes > Dia | Anio > Semana > Dia
+-- DIM_DATE: Hierarchy Year > Quarter > Month > Day | Year > Week > Day
 CREATE TABLE DIM_DATE (
     DATE_KEY NUMBER(8) NOT NULL,   -- YYYYMMDD
     FULL_DATE DATE NOT NULL,
     DAY_OF_MONTH NUMBER(2) NOT NULL,
     DAY_NAME VARCHAR2(12) NOT NULL,
-    DAY_OF_WEEK NUMBER(1) NOT NULL,   -- 1=Lunes ... 7=Domingo (ISO)
+    DAY_OF_WEEK NUMBER(1) NOT NULL,   -- 1=Monday ... 7=Sunday (ISO)
     WEEK_OF_YEAR NUMBER(2) NOT NULL,
     MONTH_NUM NUMBER(2) NOT NULL,
     MONTH_NAME VARCHAR2(12) NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE DIM_DATE (
     CONSTRAINT UQ_DIM_DATE_FULL UNIQUE (FULL_DATE)
 );
 
--- DIM_COMPANY: Sector > Industria > Sub-Industria > Compania (SCD Tipo 2)
+-- DIM_COMPANY: Sector > Industry > Sub-Industry > Company (SCD Type 2)
 CREATE TABLE DIM_COMPANY (
     COMPANY_KEY NUMBER GENERATED ALWAYS AS IDENTITY,
     SYMBOL VARCHAR2(10) NOT NULL,   -- llave natural
@@ -33,7 +33,8 @@ CREATE TABLE DIM_COMPANY (
     CONSTRAINT CK_DIM_COMPANY_CURR CHECK (IS_CURRENT IN ('Y','N'))
 );
 
--- FACT_DAILY_QUOTE: grano = 1 fila por simbolo por dia de cotizacion
+
+-- FACT_DAILY_QUOTE: granularity = 1 row per symbol per trading day
 CREATE TABLE FACT_DAILY_QUOTE (
     DATE_KEY NUMBER(8) NOT NULL,
     COMPANY_KEY NUMBER NOT NULL,
