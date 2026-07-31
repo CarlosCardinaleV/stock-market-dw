@@ -189,5 +189,34 @@ def extract_sp500() -> pd.DataFrame:
     ]
     return dataframe
 
+################## Oracle format normalization ##################
+
+def _stg_daily_prices(prices: pd.DataFrame) -> pd.DataFrame:
+    """Renames and formats columns to match STG_DAiLY_PRICES."""
+    return (
+        prices.rename(
+            columns={
+                "symbol": "SYMBOL",
+                "timestamp": "TRADE_DATE",
+                "open": "OPEN_PRICE",
+                "high": "HIGH_PRICE",
+                "low": "LOW_PRICE",
+                "close": "CLOSE_PRICE",
+                "volume": "VOLUME",
+            }
+        )[
+            [
+                "SYMBOL",
+                "TRADE_DATE",
+                "OPEN_PRICE",
+                "HIGH_PRICE",
+                "LOW_PRICE",
+                "CLOSE_PRICE",
+                "VOLUME",
+            ]
+        ]
+    )
+
+
 if __name__ == "__main__":
     print("done")
