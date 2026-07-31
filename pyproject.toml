@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-market-dw"
+version = "0.1.0"
+description = "Enterprise-grade Data Warehouse for 20+ years of daily OHLCV stock market data"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+
+dependencies = [
+    "oracledb>=2.0",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+    "seaborn>=0.13",
+    "requests>=2.31",
+    "lxml>=5.0",
+    "yfinance>=0.2",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+spark = [
+    "pyspark>=3.5",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
