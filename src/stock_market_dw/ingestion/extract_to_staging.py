@@ -217,6 +217,72 @@ def _stg_daily_prices(prices: pd.DataFrame) -> pd.DataFrame:
         ]
     )
 
+def _stg_company_overview(overviews: pd.DataFrame) -> pd.DataFrame:
+    """Rename columns to match STG_COMPANY_OVERVIEW."""
+    return(
+        overviews.rename(
+            columns={
+                "Symbol": "SYMBOL",
+                "Name": "COMPANY_NAME",
+                "Exchange": "EXCHANGE",
+                "Sector": "SECTOR",
+                "Industry": "INDUSTRY",
+                "Country": "COUNTRY",
+                "MarketCapitalization": "MARKET_CAP",
+                "Description": "DESCRIPTION",
+            }
+        )[
+            [
+                "SYMBOL",
+                "COMPANY_NAME",
+                "EXCHANGE",
+                "SECTOR",
+                "INDUSTRY",
+                "COUNTRY",
+                "MARKET_CAP",
+                "DESCRIPTION",
+            ]
+        ]
+    )
+
+################## mains modes ##################
+
+def main():
+    """Full load: extracts everything and saves 3 Oracle-ready CSVs in output/."""
+    if not API_KEY:
+        sys.exit("Set ALPHAVANTAGE_KEY in .env before running.")
+
+    output_directory = _output_dir()
+    print(f"Output directory: {output_directory}\n")
+
+    print("1/3 Extracting prices (yfinance, uses cache if available)...")
+    frames = []
+    for symbol in SYMBOLS:
+        dataframe = extract_prices(symbol)
+        dataframe["symbol"] = symbol
+        frames.append(dataframe)
+        print(f"    {symbol}: {len(dataframe):,} rows")
+    prices = pd.concat(frames, ignore_index=True)
+    staging_prices = _stg_daily_prices(prices) # to rename columns for Oracle format
+
+    print("\n2/3 Extracting OVERVIEW (Alpha Vantage)...")
+    overviews = pd.DataFrame([extract_overview(symbol) for symbol in SYMBOLS])
+    staging_companies = _stg_company_overview(overviews) # to rename columns for Oracle format
+
+    print("\n3/3 Extracting S&P 500 list from Wikipedia...")
+    sp500 = extract_sp500()
+    staging_sp500 = sp500 # format already Oracle compatible for staging table
+
+    # to save CSVs with Oracle-ready columns names
+    staging_prices.to_csv(output_directory/"stg_daily_prices.csv", index=False)
+    staging_companies.to_csv(output_directory/"stg_company_overview.csv", index=False)
+    staging_sp500.to_csv(output_directory/"stg_sp500_components.csv", index=False)
+
+    print(f"\nFiles saved in {output_directory}:")
+    print(f"    stg_daily_prices.csv        → {len(staging_prices):,} rows")
+    print(f"    stg_company_overview.csv    → {len(staging_companies)} rows")
+    print(f"    stg_sp500_components.csv    → {len(staging_sp500)} rows")
+
 
 if __name__ == "__main__":
-    print("done")
+    main()
