@@ -56,7 +56,7 @@ def _output_dir() -> pathlib.Path:
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
-## Extraction ##
+################## Extraction ##################
 
 def extract_prices(symbol: str) -> pd.DataFrame:
     """OHLCV history via yfinance with incremental cache updates.
@@ -145,7 +145,49 @@ def extract_compact_prices(symbol: str) -> pd.DataFrame:
     time.sleep(PAUSE_SECONDS)
     return pd.read_csv(io.StringIO(response.text))
 
+def extract_overview(symbol: str) -> dict:
+    """Company metadata via Alpha Vantage OVERVIEW. Caches it in raw/."""
+    cache = RAW_DIR / f"overview{symbol}.json"
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
 
+    response = requests.get(
+        BASE,
+        params={
+            "function": "OVERVIEW",
+            "symbol": symbol,
+            "apikey": API_KEY
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    if "Symbol" not in data:
+        raise RuntimeError(f"{symbol}: OVERVIEW returned no data: {data}")
+    cache.write_text(json.dumps(data), encoding="utf-8")
+    time.sleep(PAUSE_SECONDS)
+    return data
+
+def extract_sp500() -> pd.DataFrame:
+    """S&P 500 components from Wikipedia (with User-Agent to avoid 403)."""
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; stock-market-dw/1.0)"}
+    response = requests.get(url, headers=headers, timeout=300)
+    response.raise_for_status()
+
+    dataframe = pd.read_html(io.StringIO(response.text))[0]
+    dataframe.columns = [
+        "SYMBOL",
+        "SECURITY_NAME",
+        "GICS_SECTOR",
+        "GICS_SUB_INDUSTRY",
+        "HQ_LOCATION",
+        "DATE_ADDED",
+        "CIK",
+        "FOUNDED",
+    ]
+    return dataframe
 
 if __name__ == "__main__":
     print("done")
