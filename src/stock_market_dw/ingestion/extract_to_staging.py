@@ -245,7 +245,7 @@ def _stg_company_overview(overviews: pd.DataFrame) -> pd.DataFrame:
         ]
     )
 
-################## mains modes ##################
+################## main modes ##################
 
 def main():
     """Full load: extracts everything and saves 3 Oracle-ready CSVs in output/."""
