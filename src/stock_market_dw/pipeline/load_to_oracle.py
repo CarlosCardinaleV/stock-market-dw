@@ -64,4 +64,109 @@ def _ensure_wallet_dir(wallet: pathlib.Path) -> pathlib.Path:
             )
     return destination
 
+def _read_tnsnames(wallet_dir: pathlib.Path) -> str:
+    """Returns the contents of tnsnames.ora from the wallet directory."""
+    tns = wallet_dir / "tnsnames.ora"
+    if not tns.exists():
+        sys.exit(f"tnsnames.ora not found in {wallet_dir}")
+    return tns.read_text()
 
+def _extract_descriptor(tns_content: str, alias: str) -> str:
+    """Extracts the complete (DESCRIPTION=...) string for the given alias.
+
+    Balancing parentheses allows extraction of the exact descriptor without
+    requiring oracledb to resolve the alias from a file on disk.
+    """
+    match = re.search(
+        rf"(?:^|\n){re.escape(alias)}\s*=\s*",
+        tns_content,
+        re.IGNORECASE,
+    )
+    if not match:
+        return alias # fallback: return the alias as-is
+
+    start = tns_content.index("(", match.end())
+    depth = 0
+    for index, character in enumerate(tns_content[start:], start):
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return tns_content[start : index + 1]
+    return alias
+
+def _pick_alias(tns_content: str) -> str:
+    """Selects the most suitable alias (prefers _high)."""
+    aliases = re.findall(r"^(\w[\w._-]*)\s*=", tns_content, re.MULTILINE)
+    if not aliases:
+        sys.exit("No aliases found in tnsnames.ora")
+    for suffix in ("_high", "_medium", "_low", "_tp"):
+        for alias in aliases:
+            if alias.lower().endswith(suffix):
+                return alias
+    return aliases[0]
+
+################## connection ##################
+
+def _connect();
+    import oracledb
+
+    raw_wallet = os.environ.get("ORACLE_WALLET_DIR", "")
+    if not raw_wallet:
+        sys.exit("Set ORACLE_WALLET_DIR in .env before running.")
+
+    user = os.environ.get("ORACLE_USER", "")
+    password = os.environ.get("ORACLE_PASSWORD", "")
+    if not user or not password:
+        sys.exit("Set ORACLE_USER and ORACLE_PASSWORD in .env.")
+
+    wallet = pathlib.Path(raw_wallet)
+    if not wallet.exists():
+        sys.exit(f"ORACLE_WALLET_DIR does not exists: {wallet}")
+
+    wallet_dir = _ensure_wallet_dir(wallet)
+    tns = _read_tnsnames(wallet_dir)
+    alias = os.environ.get("ORACLE_DNS", "").strip() or _pick_alias(tns)
+    dsn = _extract_descriptor(tns, alias)
+    print(f"DSN: {alias}")
+
+    kwargs: dict = dict(
+        user=user,
+        password=password,
+        dsn=dsn,
+        config_dir=str(wallet_dir),
+        wallet_location=str(wallet_dir),
+    )
+    wallet_password = os.environ.get("ORACLE_WALLET_PASSWORD", "").strip()
+    if wallet_password:
+        kwargs["wallet_password"] = wallet_password
+
+    connection = oracledb.connect(**kwargs)
+    print(f"Connected to Oracle as {user}\n")
+    return connection
+
+################## insertion helpers ##################
+
+def _nan_to_none(value):
+    if value is None:
+        return None
+    try:
+        if math.isnan(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return value
+
+def _rows(dataframe: pd.DataFrame, columns: list[str]) -> list[tuple]:
+    return [
+        tuple(_nan_to_none(row[column]) for column in columns)
+        for _, row in dataframe[columns].iterrows()
+    ]
+
+def _insert(cursor, table: str, columns: list[str], data: list[tuple]) -> None:
+    placeholders = ", ".join(f":{index + 1}" for index in range(len(columns)))
+    sql = f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"
+    for start in range(0, len(data), _BATCH):
+        cursor.executemany(sql, data[start : start + _BATCH])
+    print(f"  {table}: {len(data):,} rows inserted")
