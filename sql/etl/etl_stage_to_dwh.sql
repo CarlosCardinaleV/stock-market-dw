@@ -1,8 +1,8 @@
--- DW Bursátil
+-- Stock Market Data Warehouse
 -- ETL (STAGE -> STAR SCHEMA)
 
--- Poblar DIM_DATE con generador de fechas (CONNECT BY)
--- Cubre el rango completo presente en el staging.
+-- Populate DIM_DATE using a date generator (CONNECT BY)
+-- Covers the full range present in the staging area.
 INSERT INTO DIM_DATE (DATE_KEY, FULL_DATE, DAY_OF_MONTH, DAY_NAME, DAY_OF_WEEK,
     WEEK_OF_YEAR, MONTH_NUM, MONTH_NAME, QUARTER_NUM, YEAR_NUM,
     IS_MONTH_END, IS_YEAR_END)
@@ -40,14 +40,14 @@ WHERE
         WHERE D2.DATE_KEY = TO_NUMBER(TO_CHAR(C.D, 'YYYYMMDD')));
 COMMIT;
 
--- Poblar DIM_COMPANY con MERGE (lógica SCD Tipo 2)
---     Fuente: OVERVIEW enriquecido con la sub-industria GICS
---     de la lista del S&P 500.
---     primer paso: expirar la versión vigente si cambió algún
---             atributo rastreado (SECTOR, INDUSTRY, NAME).
---     segundo paso: insertar la nueva versión (o la inicial).
+-- Populate DIM_COMPANY using MERGE (SCD Type 2 logic)
+--     Source: OVERVIEW enriched with GICS sub-industry data
+--     from the S&P 500 list.
+--     Step 1: Expire the current version if any tracked
+--             attribute (SECTOR, INDUSTRY, NAME) has changed.
+--     Step 2: Insert the new version (or the initial one).
 
--- primer paso: cerrar versiones cuyo contenido cambió en la fuente
+-- Step 1: Close versions where the content has changed in the source
 UPDATE DIM_COMPANY d
 SET
     d.VALID_TO = TRUNC(SYSDATE) - 1,
@@ -65,14 +65,14 @@ WHERE
   OR NVL(INITCAP(o.COMPANY_NAME),'~') != NVL(d.COMPANY_NAME,'~')))
 ;
 
--- segundo paso: insertar versiones nuevas (símbolos nuevos o expirados)
+-- second step: insert new versions (new or expired symbols)
 INSERT INTO DIM_COMPANY (SYMBOL, COMPANY_NAME, EXCHANGE, SECTOR, INDUSTRY,
     SUB_INDUSTRY, COUNTRY, VALID_FROM, VALID_TO, IS_CURRENT)
 SELECT
     o.SYMBOL,
     INITCAP(o.COMPANY_NAME),
     UPPER(o.EXCHANGE),
-    INITCAP(o.SECTOR), -- normalización de dominio
+    INITCAP(o.SECTOR),
     INITCAP(o.INDUSTRY),
     s.GICS_SUB_INDUSTRY,
     NVL(o.COUNTRY, 'USA'),
@@ -90,15 +90,15 @@ WHERE
 COMMIT;
 
 
--- Poblar FACT_DAILY_QUOTE — MERGE
---     MERGE en vez de INSERT para que la carga incremental
---     diaria pueda correr sin duplicar filas existentes.
---     Medidas calculadas con SQL Analytics (window functions):
+-- Populate FACT_DAILY_QUOTE — MERGE
+--     Use MERGE instead of INSERT so that the daily incremental
+--     load can run without duplicating existing rows.
+--     Metrics calculated using SQL Analytics (window functions):
 --       - DAILY_RETURN_PCT : LAG
 --       - SMA_20 : AVG OVER (ROWS 19 PRECEDING)
---       - VOLATILITY_20 : STDDEV del retorno (20 días)
---     El join a la dimensión usa la versión vigente en la
---     fecha del hecho (rango VALID_FROM / VALID_TO de SCD2).
+--       - VOLATILITY_20 : STDDEV of the return (20 days)
+--     The join to the dimension uses the version active on the
+--     fact date (SCD2 VALID_FROM / VALID_TO range).
 MERGE INTO FACT_DAILY_QUOTE f
 USING (
     WITH BASE AS (
@@ -152,9 +152,9 @@ VALUES (src.DATE_KEY, src.COMPANY_KEY, src.OPEN_PRICE, src.HIGH_PRICE, src.LOW_P
 COMMIT;
 
 
--- EMA_20 (media móvil exponencial, alfa = 2/21)
---     Cálculo recursivo con WITH recursivo (la EMA depende de
---     su propio valor anterior, no se puede con window simple).
+-- EMA_20 (exponential moving average, alpha = 2/21)
+--     Recursive calculation using recursive WITH (the EMA depends on
+--     its own previous value; a simple window function cannot be used).
 MERGE INTO FACT_DAILY_QUOTE f
 USING (
     WITH ORDENADO AS (
@@ -195,7 +195,7 @@ WHEN MATCHED THEN UPDATE SET f.EMA_20 = src.EMA_VAL;
 COMMIT;
 
 -- ------------------------------------------------------------
--- Verificación post-carga
+-- post upload verification
 -- ------------------------------------------------------------
 SELECT
     (SELECT COUNT(*) FROM STG_DAILY_PRICES) AS FILAS_STAGE,
@@ -210,7 +210,7 @@ FROM
 
 
 
--- para vaciar las tablas manteniendo la forma
+-- to empty the tables while preserving their structure
 -- ALTER TABLE FACT_DAILY_QUOTE DISABLE CONSTRAINT FK_FACT_DATE;
 -- ALTER TABLE FACT_DAILY_QUOTE DISABLE CONSTRAINT FK_FACT_COMPANY;
 
@@ -218,7 +218,7 @@ FROM
 -- TRUNCATE TABLE DIM_COMPANY;
 -- TRUNCATE TABLE DIM_DATE;
 
--- reiniciar la identity de DIM_COMPANY
+-- restart identity of DIM_COMPANY
 -- ALTER TABLE DIM_COMPANY MODIFY (COMPANY_KEY GENERATED ALWAYS AS IDENTITY (START WITH 1));
 
 -- ALTER TABLE FACT_DAILY_QUOTE ENABLE VALIDATE CONSTRAINT FK_FACT_DATE;
