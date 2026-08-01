@@ -12,20 +12,12 @@ SQL demonstrates window functions, recursive CTEs, `MATCH_RECOGNIZE`,
 
 ## How it works
 
-```text
-yfinance + Alpha Vantage + Wikipedia
-                |
-                v
-     Python extraction and CSV formatting
-                |
-                v
-   Oracle staging tables (STG_*)
-                |
-                v
-Oracle ETL -> dimensions + fact table
-                |
-                v
-          OLAP queries / APEX reports
+```mermaid
+flowchart TD
+    A["yfinance + Alpha Vantage + Wikipedia<br/>(data sources)"] --> B["Python: extraction"]
+    B --> C["Oracle staging tables"]
+    C --> D["Oracle ETL"]
+    D --> E["OLAP queries/APEX reports"]
 ```
 
 1. The Python extractor downloads price history from yfinance, company
