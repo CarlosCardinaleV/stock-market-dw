@@ -10,6 +10,75 @@ simple and exponential moving averages, and 20-day volatility. Its analytical
 SQL demonstrates window functions, recursive CTEs, `MATCH_RECOGNIZE`,
 `ROLLUP`, and `CUBE`.
 
+## Star schema
+
+The warehouse uses a star schema centred on `FACT_DAILY_QUOTE`. Its grain is
+**one row per company per trading day**. The fact table is identified by the
+combination of `DATE_KEY` and `COMPANY_KEY`, and links to the date and company
+dimensions.
+
+```mermaid
+erDiagram
+    DIM_DATE ||--o{ FACT_DAILY_QUOTE : DATE_KEY
+    DIM_COMPANY ||--o{ FACT_DAILY_QUOTE : COMPANY_KEY
+
+    DIM_DATE {
+        NUMBER DATE_KEY PK "YYYYMMDD"
+        DATE FULL_DATE UK
+        NUMBER DAY_OF_MONTH
+        VARCHAR2 DAY_NAME
+        NUMBER DAY_OF_WEEK "ISO: 1=Mon ... 7=Sun"
+        NUMBER WEEK_OF_YEAR
+        NUMBER MONTH_NUM
+        VARCHAR2 MONTH_NAME
+        NUMBER QUARTER_NUM
+        NUMBER YEAR_NUM
+        CHAR IS_MONTH_END
+        CHAR IS_YEAR_END
+    }
+
+    DIM_COMPANY {
+        NUMBER COMPANY_KEY PK
+        VARCHAR2 SYMBOL "natural key"
+        VARCHAR2 COMPANY_NAME
+        VARCHAR2 EXCHANGE
+        VARCHAR2 SECTOR
+        VARCHAR2 INDUSTRY
+        VARCHAR2 SUB_INDUSTRY
+        VARCHAR2 COUNTRY
+        DATE VALID_FROM
+        DATE VALID_TO
+        CHAR IS_CURRENT
+    }
+
+    FACT_DAILY_QUOTE {
+        NUMBER DATE_KEY PK_FK
+        NUMBER COMPANY_KEY PK_FK
+        NUMBER OPEN_PRICE
+        NUMBER HIGH_PRICE
+        NUMBER LOW_PRICE
+        NUMBER CLOSE_PRICE
+        NUMBER VOLUME
+        NUMBER TRADED_VALUE
+        NUMBER DAILY_RETURN_PCT
+        NUMBER INTRADAY_RANGE
+        NUMBER SMA_20
+        NUMBER EMA_20
+        NUMBER VOLATILITY_20
+    }
+```
+
+`DIM_DATE` supports the hierarchies **Year → Quarter → Month → Day** and
+**Year → Week → Day**. `DIM_COMPANY` supports **Sector → Industry →
+Sub-industry → Company** and retains historical attribute changes through Type
+2 slowly changing dimension columns (`VALID_FROM`, `VALID_TO`, and
+`IS_CURRENT`).
+
+`FACT_DAILY_QUOTE` stores OHLCV market data plus derived measures:
+`TRADED_VALUE`, `DAILY_RETURN_PCT`, `INTRADAY_RANGE`, 20-day simple and
+exponential moving averages (`SMA_20`, `EMA_20`), and 20-day volatility
+(`VOLATILITY_20`).
+
 ## How it works
 
 ```mermaid
